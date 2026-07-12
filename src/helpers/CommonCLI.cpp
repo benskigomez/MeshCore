@@ -247,6 +247,16 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t now = getRTCClock()->getCurrentTime();
       DateTime dt = DateTime(now);
       sprintf(reply, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+    } else if (memcmp(command, "timeforce ", 10) == 0) {  // force-set time, allowed to move backwards (recover a clock stuck in the future)
+      uint32_t secs = _atoi(&command[10]);
+      if (secs == 0) {
+        strcpy(reply, "(ERR: usage: timeforce <epoch-seconds>)");
+      } else {
+        getRTCClock()->setCurrentTime(secs);
+        uint32_t now = getRTCClock()->getCurrentTime();
+        DateTime dt = DateTime(now);
+        sprintf(reply, "OK - clock FORCED: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+      }
     } else if (memcmp(command, "time ", 5) == 0) {  // set time (to epoch seconds)
       uint32_t secs = _atoi(&command[5]);
       uint32_t curr = getRTCClock()->getCurrentTime();
@@ -256,7 +266,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         DateTime dt = DateTime(now);
         sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
       } else {
-        strcpy(reply, "(ERR: clock cannot go backwards)");
+        strcpy(reply, "(ERR: clock cannot go backwards - use 'timeforce <secs>' to override)");
       }
     } else if (memcmp(command, "neighbors", 9) == 0) {
       _callbacks->formatNeighborsReply(reply);

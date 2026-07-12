@@ -144,15 +144,23 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   return 13;  // reply length
 }
 
+// Parse the {reply-path-len}{reply-path} prefix of an anon request into reply_path/reply_path_len/
+// reply_path_hash_size. Returns false (caller drops the request) if the encoded path would not fit
+// in reply_path[MAX_PATH_SIZE] -- the length is attacker-supplied, so this bound must be enforced.
+bool MyMesh::parseReplyPath(const uint8_t* data) {
+  uint8_t path_len = *data & 63;
+  uint8_t hash_size = (*data >> 6) + 1;
+  if ((size_t)path_len * hash_size > MAX_PATH_SIZE) return false;
+  reply_path_len = path_len;
+  reply_path_hash_size = hash_size;
+  memcpy(reply_path, data + 1, (size_t)path_len * hash_size);
+  return true;
+}
+
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
-    reply_path_len = *data & 63;
-    reply_path_hash_size = (*data >> 6) + 1;
-    data++;
-
-    memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
-    // data += (uint8_t)reply_path_len * reply_path_hash_size;
+    if (!parseReplyPath(data)) return 0;   // drop request if reply-path length is out of range
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
@@ -166,12 +174,7 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
 uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
-    reply_path_len = *data & 63;
-    reply_path_hash_size = (*data >> 6) + 1;
-    data++;
-
-    memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
-    // data += (uint8_t)reply_path_len * reply_path_hash_size;
+    if (!parseReplyPath(data)) return 0;   // drop request if reply-path length is out of range
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
@@ -186,12 +189,7 @@ uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender
 uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
-    reply_path_len = *data & 63;
-    reply_path_hash_size = (*data >> 6) + 1;
-    data++;
-
-    memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
-    // data += (uint8_t)reply_path_len * reply_path_hash_size;
+    if (!parseReplyPath(data)) return 0;   // drop request if reply-path length is out of range
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
